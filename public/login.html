@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Sign In — NIE-Vault</title>
+<link rel="stylesheet" href="css/style.css"/>
+<style>
+  body {
+    min-height: 100vh;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    background: var(--canvas);
+  }
+  @media(max-width: 768px) { body { grid-template-columns: 1fr; } }
+
+  .left-panel {
+    background: var(--ink);
+    display: flex; flex-direction: column;
+    justify-content: space-between;
+    padding: 3rem;
+    position: relative; overflow: hidden;
+    min-height: 100vh;
+  }
+  @media(max-width: 768px) { .left-panel { display: none; } }
+
+  .left-panel::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 30% 50%, rgba(59,130,246,0.18) 0%, transparent 65%),
+                radial-gradient(ellipse at 80% 20%, rgba(16,185,129,0.10) 0%, transparent 55%);
+    pointer-events: none;
+  }
+  .left-bg-grid {
+    position: absolute; inset: 0;
+    background-image: linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+                      linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+  }
+  .left-brand {
+    display: flex; align-items: center; gap: 12px;
+    font-family: 'Clash Display', sans-serif;
+    font-size: 1.1rem; font-weight: 700; color: #fff; z-index: 1;
+  }
+  .left-brand .mark {
+    width: 40px; height: 40px; border-radius: 12px;
+    background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15);
+    display: flex; align-items: center; justify-content: center; font-size: 1.2rem;
+  }
+  .left-content { z-index: 1; }
+  .left-content h2 {
+    font-size: clamp(1.8rem, 3vw, 2.5rem); color: #fff;
+    margin-bottom: 1rem; line-height: 1.15;
+  }
+  .left-content h2 span { color: var(--sky); }
+  .left-content p { color: rgba(255,255,255,0.45); font-size: 0.95rem; line-height: 1.7; }
+  .left-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 2.5rem; z-index: 1; }
+  .left-stat {
+    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.09);
+    border-radius: var(--r-lg); padding: 1rem 1.2rem;
+  }
+  .left-stat .n { font-family: 'Clash Display', sans-serif; font-size: 1.8rem; font-weight: 700; color: #fff; }
+  .left-stat .l { font-size: 0.78rem; color: rgba(255,255,255,0.35); margin-top: 2px; }
+  .left-footer { color: rgba(255,255,255,0.2); font-size: 0.75rem; z-index: 1; }
+
+  .right-panel {
+    display: flex; align-items: center; justify-content: center;
+    padding: 2rem; min-height: 100vh;
+  }
+  .auth-box { width: 100%; max-width: 420px; animation: fadeUp 0.5s var(--ease-out) both; }
+  .auth-header { margin-bottom: 2rem; }
+  .auth-header h1 { font-size: 1.9rem; margin-bottom: 0.3rem; }
+  .auth-header p  { color: var(--ink-40); font-size: 0.9rem; }
+
+  .field-group { display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1.5rem; }
+
+  .submit-btn {
+    width: 100%; padding: 13px;
+    background: var(--ink); color: #fff; border: none;
+    border-radius: var(--r-full);
+    font-family: 'Clash Display', sans-serif; font-size: 1rem; font-weight: 600;
+    cursor: pointer; letter-spacing: 0.01em;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    transition: background var(--t-fast), transform var(--t-fast) var(--ease-spring), box-shadow var(--t-fast);
+  }
+  .submit-btn:hover { background: var(--sky-dark); box-shadow: 0 4px 20px rgba(29,78,216,0.3); transform: translateY(-1px); }
+  .submit-btn:active { transform: scale(0.97); }
+  .submit-btn:disabled { opacity: 0.6; transform: none; cursor: not-allowed; }
+
+  .switch-text { text-align: center; margin-top: 1.2rem; font-size: 0.85rem; color: var(--ink-40); }
+  .switch-text a { color: var(--sky); font-weight: 600; cursor: pointer; }
+  .switch-text a:hover { text-decoration: underline; }
+
+  .form-panel { display: none; }
+  .form-panel.active { display: block; animation: fadeUp 0.3s var(--ease-out) both; }
+  .alert-box { margin-bottom: 1rem; }
+</style>
+</head>
+<body>
+
+<div class="left-panel">
+  <div class="left-bg-grid"></div>
+  <div class="left-brand"><div class="mark">🔍</div>NIE-Vault</div>
+  <div class="left-content">
+    <h2>Lost something?<br/>We'll help you <span>find it.</span></h2>
+    <p>A centralized platform for reporting, searching, and recovering lost items across your college campus.</p>
+    <div class="left-stats">
+      <div class="left-stat"><div class="n" id="ls1">—</div><div class="l">Active Lost Reports</div></div>
+      <div class="left-stat"><div class="n" id="ls2">—</div><div class="l">Items Found</div></div>
+      <div class="left-stat"><div class="n" id="ls3">—</div><div class="l">Items Returned</div></div>
+      <div class="left-stat"><div class="n">24/7</div><div class="l">Always Available</div></div>
+    </div>
+  </div>
+  <div class="left-footer">NIE-Vault · Phase 1</div>
+</div>
+
+<div class="right-panel">
+  <div class="auth-box">
+    <div class="auth-header">
+      <h1>Welcome back</h1>
+      <p>Sign in to your campus account</p>
+    </div>
+
+    <div style="display:flex;background:var(--ink-10);border-radius:var(--r-full);padding:4px;gap:2px;margin-bottom:2rem;">
+      <button class="tab-btn active" id="tabLogin"    onclick="switchTab('login')">Sign In</button>
+      <button class="tab-btn"        id="tabRegister" onclick="switchTab('register')">Register</button>
+    </div>
+
+    <div id="alertBox" class="alert-box"></div>
+
+    <div id="loginPanel" class="form-panel active">
+      <div class="field-group">
+        <div class="form-group">
+          <label class="form-label">Email or Username</label>
+          <input class="form-control" id="loginId" type="text" placeholder="you@college.edu or username" autocomplete="username"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <input class="form-control" id="loginPwd" type="password" placeholder="Enter your password" autocomplete="current-password"/>
+        </div>
+      </div>
+      <button class="submit-btn" id="loginBtn" onclick="doLogin()">Sign In →</button>
+      <div class="switch-text">No account? <a onclick="switchTab('register')">Register free</a></div>
+    </div>
+
+    <div id="registerPanel" class="form-panel">
+      <div class="field-group">
+        <div class="form-row form-row-2">
+          <div class="form-group">
+            <label class="form-label">Full Name <span class="req">*</span></label>
+            <input class="form-control" id="rName" type="text" placeholder="Your full name"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Username <span class="req">*</span></label>
+            <input class="form-control" id="rUser" type="text" placeholder="unique_id"/>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">College Email <span class="req">*</span></label>
+          <input class="form-control" id="rEmail" type="email" placeholder="you@college.edu"/>
+        </div>
+        <div class="form-row form-row-2">
+          <div class="form-group">
+            <label class="form-label">Password <span class="req">*</span></label>
+            <input class="form-control" id="rPwd" type="password" placeholder="Min 6 chars"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Phone <span class="hint">(optional)</span></label>
+            <input class="form-control" id="rPhone" type="tel" placeholder="9XXXXXXXXX"/>
+          </div>
+        </div>
+      </div>
+      <button class="submit-btn" id="regBtn" onclick="doRegister()">Create Account →</button>
+      <div class="switch-text">Already registered? <a onclick="switchTab('login')">Sign in</a></div>
+    </div>
+  </div>
+</div>
+
+<script src="js/app.js"></script>
+<script src="js/login.js"></script>
+</body>
+</html>

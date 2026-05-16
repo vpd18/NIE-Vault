@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Home — NIE-Vault</title>
+<link rel="stylesheet" href="css/style.css"/>
+<style>
+  .hero {
+    background: var(--ink);
+    position: relative; overflow: hidden;
+    padding: 4rem 2rem 3rem;
+  }
+  .hero::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 70% 50%, rgba(59,130,246,0.15) 0%, transparent 60%),
+                radial-gradient(ellipse at 20% 80%, rgba(16,185,129,0.08) 0%, transparent 50%);
+    pointer-events: none;
+  }
+  .hero-grid {
+    position: absolute; inset: 0;
+    background-image: linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+                      linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+    background-size: 40px 40px; pointer-events: none;
+  }
+  .hero-inner { max-width: 1100px; margin: 0 auto; position: relative; z-index: 1; }
+  .hero-greeting {
+    font-size: 0.85rem; font-weight: 600; letter-spacing: 0.08em;
+    color: var(--sky); text-transform: uppercase; margin-bottom: 0.5rem;
+  }
+  .hero h1 { color: #fff; margin-bottom: 0.6rem; }
+  .hero p   { color: rgba(255,255,255,0.5); font-size: 0.95rem; margin-bottom: 2rem; }
+
+  .hero-search {
+    display: flex; gap: 8px;
+    max-width: 520px;
+  }
+  .hero-search input {
+    flex: 1; padding: 12px 18px;
+    border: 1.5px solid rgba(255,255,255,0.12);
+    border-radius: var(--r-full);
+    background: rgba(255,255,255,0.08);
+    color: #fff; font-family: 'Satoshi', sans-serif; font-size: 0.92rem;
+    outline: none;
+    transition: border-color var(--t-fast), background var(--t-fast);
+  }
+  .hero-search input::placeholder { color: rgba(255,255,255,0.35); }
+  .hero-search input:focus {
+    border-color: var(--sky);
+    background: rgba(255,255,255,0.12);
+  }
+  .hero-search .search-btn {
+    padding: 12px 22px;
+    background: var(--sky); color: #fff; border: none;
+    border-radius: var(--r-full);
+    font-family: 'Clash Display', sans-serif; font-weight: 600; font-size: 0.9rem;
+    cursor: pointer; white-space: nowrap;
+    transition: background var(--t-fast), transform var(--t-fast) var(--ease-spring);
+  }
+  .hero-search .search-btn:hover { background: var(--sky-dark); transform: translateY(-1px); }
+
+  main { max-width: 1100px; margin: 0 auto; padding: 2.5rem 1.5rem 4rem; }
+
+  /* Stats row */
+  .stats-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 1rem; margin-bottom: 2.5rem; }
+  @media(max-width:600px){ .stats-row { grid-template-columns:1fr; } }
+
+  /* Action cards */
+  .actions-title {
+    font-size: 0.75rem; font-weight: 700; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--ink-40); margin-bottom: 1rem;
+  }
+  .action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; margin-bottom: 2.5rem; }
+  @media(max-width:600px){ .action-grid { grid-template-columns:1fr; } }
+
+  .action-card {
+    display: flex; align-items: center; gap: 1.2rem;
+    padding: 1.5rem 1.6rem;
+    border-radius: var(--r-xl);
+    text-decoration: none; color: inherit;
+    border: 1.5px solid transparent;
+    transition: transform var(--t-mid) var(--ease-spring),
+                box-shadow var(--t-mid) var(--ease),
+                border-color var(--t-mid) var(--ease);
+    position: relative; overflow: hidden;
+  }
+  .action-card::before {
+    content: '';
+    position: absolute; inset: 0;
+    opacity: 0;
+    transition: opacity var(--t-mid) var(--ease);
+  }
+  .action-card:hover { transform: translateY(-4px); }
+  .action-card:hover::before { opacity: 1; }
+
+  .action-card.lost {
+    background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+    border-color: rgba(245,158,11,0.2);
+  }
+  .action-card.lost:hover { border-color: var(--amber); box-shadow: 0 8px 32px rgba(245,158,11,0.15); }
+
+  .action-card.found {
+    background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+    border-color: rgba(16,185,129,0.2);
+  }
+  .action-card.found:hover { border-color: var(--jade); box-shadow: 0 8px 32px rgba(16,185,129,0.15); }
+
+  .action-icon {
+    width: 56px; height: 56px; border-radius: 16px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.6rem; flex-shrink: 0;
+  }
+  .action-card.lost  .action-icon { background: rgba(245,158,11,0.15); }
+  .action-card.found .action-icon { background: rgba(16,185,129,0.15); }
+
+  .action-text h3 { font-size: 1.05rem; margin-bottom: 0.2rem; }
+  .action-text p  { font-size: 0.82rem; color: var(--ink-40); line-height: 1.5; }
+  .action-arrow {
+    margin-left: auto; flex-shrink: 0;
+    font-size: 1.2rem; color: var(--ink-40);
+    transition: transform var(--t-fast) var(--ease-spring);
+  }
+  .action-card:hover .action-arrow { transform: translateX(4px); color: var(--ink); }
+
+  /* Recent items */
+  .section-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:1.2rem; }
+  .section-header h2 { font-size:1.05rem; }
+  .view-all { font-size:0.85rem; color:var(--sky); font-weight:600; text-decoration:none; }
+  .view-all:hover { text-decoration:underline; }
+</style>
+</head>
+<body>
+
+<nav class="navbar" id="navbar">
+  <a class="navbar-brand" href="/home.html">
+    <div class="logo-mark">🔍</div>
+    NIE-Vault
+  </a>
+  <div class="navbar-nav">
+    <a class="nav-item" data-page="home" href="/home.html">Home</a>
+    <a class="nav-item" data-page="search" href="/search.html">Browse Items</a>
+    <a class="nav-item" data-page="report" href="/report.html?type=lost">Report Lost</a>
+    <a class="nav-item" data-page="found" href="/report.html?type=found">Report Found</a>
+  </div>
+  <div class="navbar-actions">
+    <span style="font-size:0.85rem;color:var(--ink-40);">Hi, <strong id="nav-user">…</strong></span>
+    <button class="btn btn-ghost btn-sm" id="nav-logout">Sign Out</button>
+  </div>
+</nav>
+
+<div class="hero">
+  <div class="hero-grid"></div>
+  <div class="hero-inner stagger">
+    <div class="hero-greeting">NIE-Vault</div>
+    <h1>Hello, <span id="heroName">there</span> 👋</h1>
+    <p>Search for lost items, or report something you found on campus.</p>
+    <div class="hero-search">
+      <input type="text" id="heroSearch" placeholder='Search e.g. "black wallet", "ID card"…'/>
+      <button class="search-btn" onclick="goSearch()">Search →</button>
+    </div>
+  </div>
+</div>
+
+<main>
+  <!-- Stats -->
+  <div class="stats-row stagger" id="statsRow">
+    <div class="stat-card"><div class="stat-num" id="sLost">—</div><div class="stat-label">Active Lost Reports</div></div>
+    <div class="stat-card"><div class="stat-num" id="sFound">—</div><div class="stat-label">Items Found</div></div>
+    <div class="stat-card"><div class="stat-num" id="sResolved">—</div><div class="stat-label">Items Returned ✓</div></div>
+  </div>
+
+  <!-- Actions -->
+  <div class="actions-title">What do you want to do?</div>
+  <div class="action-grid stagger">
+    <a class="action-card lost" href="/report.html?type=lost">
+      <div class="action-icon">😟</div>
+      <div class="action-text">
+        <h3>I Lost Something</h3>
+        <p>Report a lost item with a private verification detail to protect ownership.</p>
+      </div>
+      <div class="action-arrow">→</div>
+    </a>
+    <a class="action-card found" href="/report.html?type=found">
+      <div class="action-icon">🎉</div>
+      <div class="action-text">
+        <h3>I Found Something</h3>
+        <p>Log a found item so its owner can search, find, and claim it back.</p>
+      </div>
+      <div class="action-arrow">→</div>
+    </a>
+  </div>
+
+  <!-- Recent items -->
+  <div class="section-header">
+    <div class="section-title-line">
+      <div class="section-dot"></div>
+      <h2>Recent Activity</h2>
+    </div>
+    <a class="view-all" href="/search.html">View all →</a>
+  </div>
+  <div class="grid-auto" id="recentGrid">
+    <div class="empty-state" style="grid-column:1/-1;padding:2rem;">
+      <div class="skeleton" style="height:160px;border-radius:var(--r-xl);margin-bottom:8px;"></div>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script src="js/app.js"></script>
+<script src="js/notifications.js"></script>
+<script src="js/home.js"></script>
+</body>
+</html>

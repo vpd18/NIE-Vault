@@ -1,0 +1,70 @@
+// js/login.js
+function switchTab(tab) {
+  const isLogin = tab === 'login';
+  document.getElementById('tabLogin').classList.toggle('active', isLogin);
+  document.getElementById('tabRegister').classList.toggle('active', !isLogin);
+  document.getElementById('loginPanel').classList.toggle('active', isLogin);
+  document.getElementById('registerPanel').classList.toggle('active', !isLogin);
+  document.getElementById('alertBox').innerHTML = '';
+}
+
+function showAlert(msg, type = 'error') {
+  document.getElementById('alertBox').innerHTML =
+    `<div class="alert alert-${type}">${type === 'error' ? '✕' : '✓'}&nbsp;&nbsp;${msg}</div>`;
+}
+
+async function doLogin() {
+  const login    = document.getElementById('loginId').value.trim();
+  const password = document.getElementById('loginPwd').value;
+  if (!login || !password) return showAlert('Please fill in both fields.');
+  const btn = document.getElementById('loginBtn');
+  btnLoading(btn, true, 'Signing in…');
+  try {
+    await API.post('/api/auth/login', { login, password });
+    showAlert('Success! Redirecting…', 'success');
+    setTimeout(() => window.location.href = '/home.html', 700);
+  } catch(e) {
+    showAlert(e.message);
+    btnLoading(btn, false);
+  }
+}
+
+async function doRegister() {
+  const full_name = document.getElementById('rName').value.trim();
+  const username  = document.getElementById('rUser').value.trim();
+  const email     = document.getElementById('rEmail').value.trim();
+  const password  = document.getElementById('rPwd').value;
+  const phone     = document.getElementById('rPhone').value.trim();
+  if (!full_name || !username || !email || !password) return showAlert('Please fill all required fields.');
+  if (password.length < 6) return showAlert('Password must be at least 6 characters.');
+  const btn = document.getElementById('regBtn');
+  btnLoading(btn, true, 'Creating account…');
+  try {
+    await API.post('/api/auth/register', { full_name, username, email, password, phone });
+    showAlert('Account created! Redirecting…', 'success');
+    setTimeout(() => window.location.href = '/home.html', 700);
+  } catch(e) {
+    showAlert(e.message);
+    btnLoading(btn, false);
+  }
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  if (document.getElementById('loginPanel').classList.contains('active')) doLogin();
+  else doRegister();
+});
+
+async function loadStats() {
+  try {
+    const [lost, found, resolved] = await Promise.all([
+      fetch('/api/items/search?type=lost&status=active').then(r=>r.json()),
+      fetch('/api/items/search?type=found&status=active').then(r=>r.json()),
+      fetch('/api/items/search?status=resolved').then(r=>r.json()),
+    ]);
+    document.getElementById('ls1').textContent = lost.length;
+    document.getElementById('ls2').textContent = found.length;
+    document.getElementById('ls3').textContent = resolved.length;
+  } catch {}
+}
+loadStats();

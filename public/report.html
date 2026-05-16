@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Report Item — NIE-Vault</title>
+<link rel="stylesheet" href="css/style.css"/>
+<style>
+  .page-top {
+    border-bottom: 1px solid var(--border);
+    padding: 2rem 0 1.5rem;
+    margin-bottom: 2rem;
+  }
+  .page-top .breadcrumb {
+    font-size: 0.8rem; color: var(--ink-40); margin-bottom: 0.8rem;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .page-top .breadcrumb a { color: var(--sky); text-decoration: none; }
+  .page-top .breadcrumb a:hover { text-decoration: underline; }
+  .page-top h1 { font-size: 1.8rem; margin-bottom: 0.3rem; }
+  .page-top p  { color: var(--ink-40); font-size: 0.9rem; }
+
+  .type-selector {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;
+    margin-bottom: 2rem;
+  }
+  .type-btn {
+    padding: 1.2rem 1.5rem;
+    border-radius: var(--r-xl);
+    border: 2px solid var(--border-md);
+    background: var(--surface);
+    cursor: pointer; text-align: left;
+    display: flex; align-items: center; gap: 12px;
+    transition: border-color var(--t-fast), background var(--t-fast),
+                transform var(--t-fast) var(--ease-spring);
+    font-family: 'Satoshi', sans-serif;
+  }
+  .type-btn:hover { transform: translateY(-2px); }
+  .type-btn .tb-icon { font-size: 1.8rem; }
+  .type-btn h4 { font-family: 'Clash Display', sans-serif; font-size: 0.95rem; margin-bottom: 2px; }
+  .type-btn p  { font-size: 0.78rem; color: var(--ink-40); line-height: 1.4; }
+
+  .type-btn.sel-lost {
+    border-color: var(--amber); background: var(--amber-light);
+  }
+  .type-btn.sel-found {
+    border-color: var(--jade); background: var(--jade-light);
+  }
+
+  .form-card { background: var(--surface); border-radius: var(--r-xl); border: 1px solid var(--border); padding: 1.8rem; margin-bottom: 1.2rem; box-shadow: var(--shadow-xs); }
+  .form-card-title {
+    font-family: 'Clash Display', sans-serif;
+    font-size: 0.9rem; font-weight: 600; color: var(--ink);
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 1.4rem; padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .form-fields { display: flex; flex-direction: column; gap: 1.1rem; }
+
+  .submit-row {
+    display: flex; gap: 10px; align-items: center;
+    margin-top: 0.5rem;
+  }
+  .submit-row .btn { flex: 1; padding: 14px; font-size: 1rem; }
+
+  .hidden-section { display: none; }
+  .hidden-section.visible { display: block; animation: fadeUp 0.3s var(--ease-out) both; }
+</style>
+</head>
+<body>
+
+<nav class="navbar" id="navbar">
+  <a class="navbar-brand" href="/home.html">
+    <div class="logo-mark">🔍</div>
+    NIE-Vault
+  </a>
+  <div class="navbar-nav">
+    <a class="nav-item" href="/home.html">Home</a>
+    <a class="nav-item" href="/search.html">Browse</a>
+    <a class="nav-item active">Report Item</a>
+  </div>
+  <div class="navbar-actions">
+    <span style="font-size:0.85rem;color:var(--ink-40);">Hi, <strong id="nav-user">…</strong></span>
+    <button class="btn btn-ghost btn-sm" id="nav-logout">Sign Out</button>
+  </div>
+</nav>
+
+<div class="page-container-md">
+  <div class="page-top">
+    <div class="breadcrumb">
+      <a href="/home.html">Home</a> <span>/</span> <span>Report Item</span>
+    </div>
+    <h1 id="pageTitle">Report an Item</h1>
+    <p id="pageDesc">Choose whether you lost or found something</p>
+  </div>
+
+  <div id="alertBox" style="margin-bottom:1rem;"></div>
+
+  <!-- Type selector -->
+  <div class="type-selector">
+    <button class="type-btn" id="btnLost" onclick="selectType('lost')">
+      <div class="tb-icon">😟</div>
+      <div>
+        <h4>I Lost Something</h4>
+        <p>Report a lost item with private verification details.</p>
+      </div>
+    </button>
+    <button class="type-btn" id="btnFound" onclick="selectType('found')">
+      <div class="tb-icon">🎉</div>
+      <div>
+        <h4>I Found Something</h4>
+        <p>Log an item you found so the owner can claim it.</p>
+      </div>
+    </button>
+  </div>
+
+  <!-- Item Details -->
+  <div class="form-card">
+    <div class="form-card-title">📋 Item Details</div>
+    <div class="form-fields">
+      <div class="form-row form-row-2">
+        <div class="form-group">
+          <label class="form-label">Category <span class="req">*</span></label>
+          <select class="form-control" id="category">
+            <option value="">Select a category…</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Color</label>
+          <input class="form-control" type="text" id="color" placeholder="e.g. Black, Red, Blue"/>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Description <span class="req">*</span></label>
+        <textarea class="form-control" id="description" placeholder="Describe the item clearly — brand, size, any distinguishing marks…"></textarea>
+      </div>
+    </div>
+  </div>
+
+  <!-- Location & Time -->
+  <div class="form-card">
+    <div class="form-card-title">📍 Location & Time</div>
+    <div class="form-fields">
+      <div class="form-group">
+        <label class="form-label">Location <span class="req">*</span></label>
+        <input class="form-control" type="text" id="location" placeholder="e.g. College canteen, Library 2nd floor, Main gate…"/>
+      </div>
+      <div class="form-row form-row-2">
+        <div class="form-group">
+          <label class="form-label">Date <span class="req">*</span></label>
+          <input class="form-control" type="date" id="itemDate"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Approx. Time <span class="hint">(optional)</span></label>
+          <input class="form-control" type="time" id="itemTime"/>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Verification (Lost only) -->
+  <div class="hidden-section" id="verificationSection">
+    <div class="form-card">
+      <div class="form-card-title">🔒 Private Verification Detail</div>
+      <div class="verification-box">
+        <div class="verification-box-header">
+          <div class="vb-icon">🛡️</div>
+          <h4>Hidden from public — only you and the finder will discuss this</h4>
+        </div>
+        <p>Add a secret detail only the real owner would know. The finder will ask about this before returning the item. Examples: "₹500 note inside", "HDFC card with name Rahul", "scratched right corner".</p>
+        <textarea class="form-control" id="verificationDetail" rows="3" placeholder="Enter your private verification detail here…"></textarea>
+      </div>
+    </div>
+  </div>
+
+  <!-- Photo -->
+  <div class="form-card">
+    <div class="form-card-title">📷 Photo <span style="font-weight:400;color:var(--ink-40);font-size:0.82rem;">(optional)</span></div>
+    <div class="upload-zone" id="uploadZone">
+      <input type="file" id="imgInput" accept="image/*"/>
+      <div class="upload-icon">📸</div>
+      <p>Click or drag & drop a photo of the item</p>
+      <div class="upload-hint">JPG, PNG, WEBP · Max 5 MB</div>
+      <img class="upload-preview" id="imgPreview"/>
+    </div>
+  </div>
+
+  <div class="submit-row">
+    <a href="/home.html" class="btn btn-ghost">Cancel</a>
+    <button class="btn btn-primary" id="submitBtn" onclick="submitReport()">Submit Report →</button>
+  </div>
+  <div style="height:3rem;"></div>
+</div>
+
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script src="js/app.js"></script>
+<script src="js/notifications.js"></script>
+<script src="js/report.js"></script>
+</body>
+</html>
