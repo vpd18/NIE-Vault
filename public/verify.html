@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Verify Email — NIE-Vault</title>
+<link rel="stylesheet" href="css/style.css" />
+<style>
+  body { display:flex; align-items:center; justify-content:center; min-height:100vh; background:var(--canvas); }
+  .card { background:#fff; padding:24px; border-radius:12px; width:100%; max-width:640px; box-shadow:0 6px 24px rgba(0,0,0,0.08); text-align:center; }
+  .submit-btn { margin-top:12px; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h2>Email verification</h2>
+    <div id="status">Verifying…</div>
+    <div style="margin-top:12px;"><a href="/login.html">Back to sign in</a></div>
+  </div>
+<script src="js/app.js"></script>
+<script>
+(async function(){
+  const p = new URLSearchParams(window.location.search);
+  const token = p.get('token');
+  const statusEl = document.getElementById('status');
+  if (!token) { statusEl.textContent = 'Missing verification token.'; return; }
+  try {
+    const res = await fetch('/api/auth/verify?token=' + encodeURIComponent(token), { credentials: 'include' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Verification failed');
+    statusEl.textContent = data.message || 'Email verified.';
+  } catch (e) {
+    statusEl.textContent = e.message;
+  }
+})();
+</script>
+</body>
+</html>

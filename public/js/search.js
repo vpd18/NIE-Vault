@@ -1,5 +1,7 @@
 // js/search.js
 let currentType = '';
+let currentPage = 1;
+const perPage = 12;
 
 function setType(t) {
   currentType = t;
@@ -50,6 +52,8 @@ async function doSearch() {
 
   const p = new URLSearchParams();
   if (currentType) p.set('type', currentType);
+  p.set('page', String(currentPage));
+  p.set('per_page', String(perPage));
   const kw  = document.getElementById('fKeyword').value.trim();
   const cat = document.getElementById('fCategory').value;
   const col = document.getElementById('fColor').value.trim();
@@ -60,9 +64,10 @@ async function doSearch() {
   if (loc) p.set('location', loc);
 
   try {
-    const items = await API.get('/api/items/search?' + p.toString());
-    const n = items.length;
-    document.getElementById('resultCount').textContent = `${n} item${n !== 1 ? 's' : ''} found`;
+    const resp = await API.get('/api/items/search?' + p.toString());
+    const items = Array.isArray(resp) ? resp : (resp.items || []);
+    const total = resp.total || items.length;
+    document.getElementById('resultCount').textContent = `${total} item${total !== 1 ? 's' : ''} found`;
 
     if (!n) {
       document.getElementById('grid').innerHTML = `
@@ -74,6 +79,7 @@ async function doSearch() {
       return;
     }
     document.getElementById('grid').innerHTML = items.map(renderCard).join('');
+    renderPagination(total, currentPage, perPage);
     // stagger animation
     document.querySelectorAll('.item-card').forEach((el, i) => {
       el.style.animation = `fadeUp 0.4s ${0.04 * i}s var(--ease-out) both`;
@@ -88,7 +94,23 @@ function clearAll() {
   document.getElementById('fCategory').value = '';
   document.getElementById('fColor').value    = '';
   document.getElementById('fLocation').value = '';
+  currentPage = 1;
   setType('');
+}
+
+function renderPagination(total, page, per) {
+  const container = document.getElementById('pagination');
+  if (!container) return;
+  container.innerHTML = '';
+  const totalPages = Math.max(1, Math.ceil(total / per));
+  const prev = document.createElement('button'); prev.className = 'btn btn-ghost btn-sm'; prev.textContent = 'Prev';
+  prev.disabled = page <= 1; prev.addEventListener('click', () => { if (page>1) { currentPage = page-1; doSearch(); } });
+  const next = document.createElement('button'); next.className = 'btn btn-ghost btn-sm'; next.textContent = 'Next';
+  next.disabled = page >= totalPages; next.addEventListener('click', () => { if (page<totalPages) { currentPage = page+1; doSearch(); } });
+  const info = document.createElement('div'); info.style.padding = '0 8px'; info.style.color = 'var(--ink-40)'; info.textContent = `Page ${page} of ${totalPages}`;
+  container.appendChild(prev);
+  container.appendChild(info);
+  container.appendChild(next);
 }
 
 async function init() {

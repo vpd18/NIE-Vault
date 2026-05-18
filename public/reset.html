@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Reset Password — NIE-Vault</title>
+<link rel="stylesheet" href="css/style.css" />
+<style>
+  body { display:flex; align-items:center; justify-content:center; min-height:100vh; background:var(--canvas); }
+  .card { background:#fff; padding:24px; border-radius:12px; width:100%; max-width:420px; box-shadow:0 6px 24px rgba(0,0,0,0.08); }
+  .field { margin-bottom:12px; }
+  .submit-btn { width:100%; }
+  .alert { margin-bottom:12px; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h2>Reset your password</h2>
+    <div id="alertBox" class="alert"></div>
+    <div class="field">
+      <label>New password</label>
+      <input id="newPwd" type="password" class="form-control" placeholder="Enter new password" />
+    </div>
+    <div class="field">
+      <label>Confirm password</label>
+      <input id="confirmPwd" type="password" class="form-control" placeholder="Confirm password" />
+    </div>
+    <button id="resetBtn" class="submit-btn" onclick="doReset()">Set new password</button>
+    <div style="margin-top:10px;text-align:center;font-size:0.95rem;color:var(--ink-40);">
+      <a href="/login.html">Back to sign in</a>
+    </div>
+  </div>
+
+<script src="js/app.js"></script>
+<script src="js/reset.js"></script>
+</body>
+</html>

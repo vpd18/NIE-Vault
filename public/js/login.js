@@ -29,6 +29,21 @@ async function doLogin() {
   }
 }
 
+async function doForgot() {
+  const email = prompt('Enter your college email or username to reset your password:');
+  if (!email) return;
+  const btn = document.getElementById('loginBtn');
+  btnLoading(btn, true, 'Sending…');
+  try {
+    await API.post('/api/auth/forgot', { email });
+    showAlert('If an account exists, a reset link has been emailed.', 'success');
+  } catch (e) {
+    showAlert(e.message);
+  } finally {
+    btnLoading(btn, false);
+  }
+}
+
 async function doRegister() {
   const full_name = document.getElementById('rName').value.trim();
   const username  = document.getElementById('rUser').value.trim();
@@ -41,8 +56,8 @@ async function doRegister() {
   btnLoading(btn, true, 'Creating account…');
   try {
     await API.post('/api/auth/register', { full_name, username, email, password, phone });
-    showAlert('Account created! Redirecting…', 'success');
-    setTimeout(() => window.location.href = '/home.html', 700);
+    showAlert('Registered. Check your college email to verify your account.', 'success');
+    setTimeout(() => window.location.href = '/login.html', 1400);
   } catch(e) {
     showAlert(e.message);
     btnLoading(btn, false);

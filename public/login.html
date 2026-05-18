@@ -139,6 +139,9 @@
           <label class="form-label">Password</label>
           <input class="form-control" id="loginPwd" type="password" placeholder="Enter your password" autocomplete="current-password"/>
         </div>
+        <div style="text-align:right;margin-top:6px;">
+          <a onclick="doForgot()" style="color:var(--sky);cursor:pointer;font-size:0.92rem;font-weight:600;">Forgot password?</a>
+        </div>
       </div>
       <button class="submit-btn" id="loginBtn" onclick="doLogin()">Sign In →</button>
       <div class="switch-text">No account? <a onclick="switchTab('register')">Register free</a></div>

@@ -25,6 +25,22 @@ function normalizeWords(value) {
     .filter(word => word.length > 2);
 }
 
+// Ensure a FULLTEXT index exists on searchable columns
+let _fulltextChecked = false;
+async function ensureFulltextIndex() {
+  if (_fulltextChecked) return;
+  try {
+    const [idx] = await db.query("SELECT COUNT(*) AS cnt FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'items' AND INDEX_NAME = 'idx_items_fulltext'");
+    if (idx[0].cnt === 0) {
+      await db.query("CREATE FULLTEXT INDEX idx_items_fulltext ON items(description, location, color)");
+      console.log('Created FULLTEXT index idx_items_fulltext');
+    }
+  } catch (err) {
+    console.warn('Could not ensure fulltext index:', err.message || err);
+  }
+  _fulltextChecked = true;
+}
+
 function scoreMatch(source, candidate) {
   let score = 0;
 
@@ -88,17 +104,51 @@ router.get('/categories', async (req, res) => {
 });
 
 router.get('/search', async (req, res) => {
-  const { type, category_id, color, location, keyword, status = 'active' } = req.query;
-  let sql = `SELECT i.item_id, i.report_type, i.status, i.color, i.location, i.description, i.item_date, i.item_time, i.image_path, i.created_at, i.user_id, c.name AS category_name, u.full_name, u.username FROM items i JOIN categories c ON i.category_id = c.category_id JOIN users u ON i.user_id = u.user_id WHERE i.status = ?`;
-  const params = [status];
-  if (type) { sql += ' AND i.report_type = ?'; params.push(type); }
-  if (category_id) { sql += ' AND i.category_id = ?'; params.push(category_id); }
-  if (color) { sql += ' AND i.color LIKE ?'; params.push('%' + color + '%'); }
-  if (location) { sql += ' AND i.location LIKE ?'; params.push('%' + location + '%'); }
-  if (keyword) { sql += ' AND MATCH(i.description) AGAINST(? IN BOOLEAN MODE)'; params.push(keyword); }
-  sql += ' ORDER BY i.created_at DESC LIMIT 50';
-  try { const [rows] = await db.query(sql, params); const safe = rows.map(({ verification_detail, ...rest }) => rest); res.json(safe); }
-  catch (err) { console.error(err); res.status(500).json({ error: 'Search failed.' }); }
+  const { type, category_id, color, location, keyword, status = 'active', page = 1, per_page = 20 } = req.query;
+  const pg = Math.max(1, parseInt(page, 10) || 1);
+  const per = Math.min(100, Math.max(5, parseInt(per_page, 10) || 20));
+  const offset = (pg - 1) * per;
+
+  const baseWhere = [];
+  const params = [];
+  baseWhere.push('i.status = ?'); params.push(status);
+  if (type) { baseWhere.push('i.report_type = ?'); params.push(type); }
+  if (category_id) { baseWhere.push('i.category_id = ?'); params.push(category_id); }
+  if (color) { baseWhere.push('i.color LIKE ?'); params.push('%' + color + '%'); }
+  if (location) { baseWhere.push('i.location LIKE ?'); params.push('%' + location + '%'); }
+
+  try {
+    await ensureFulltextIndex();
+
+    // If keyword provided, try full-text natural language search first
+    if (keyword) {
+      const ftSql = `SELECT i.item_id, i.report_type, i.status, i.color, i.location, i.description, i.item_date, i.item_time, i.image_path, i.created_at, i.user_id, c.name AS category_name, u.full_name, u.username, MATCH(i.description, i.location, i.color) AGAINST(?) AS relevance FROM items i JOIN categories c ON i.category_id = c.category_id JOIN users u ON i.user_id = u.user_id WHERE ${baseWhere.join(' AND ')} AND MATCH(i.description, i.location, i.color) AGAINST(? IN NATURAL LANGUAGE MODE) HAVING relevance > 0 ORDER BY relevance DESC, i.created_at DESC LIMIT ? OFFSET ?`;
+      const ftParams = [keyword, keyword, ...params, per, offset];
+      const [rows] = await db.query(ftSql, ftParams);
+      if (rows.length > 0) {
+        const safe = rows.map(({ verification_detail, ...rest }) => rest);
+        return res.json({ items: safe, page: pg, per_page: per, total: safe.length });
+      }
+
+      // Fallback to LIKE-based fuzzy search if full-text returns nothing
+      const likeQ = '%' + keyword.split(/\s+/).join('%') + '%';
+      const likeSql = `SELECT i.item_id, i.report_type, i.status, i.color, i.location, i.description, i.item_date, i.item_time, i.image_path, i.created_at, i.user_id, c.name AS category_name, u.full_name, u.username FROM items i JOIN categories c ON i.category_id = c.category_id JOIN users u ON i.user_id = u.user_id WHERE ${baseWhere.join(' AND ')} AND (i.description LIKE ? OR i.location LIKE ? OR i.color LIKE ?) ORDER BY i.created_at DESC LIMIT ? OFFSET ?`;
+      const likeParams = [likeQ, likeQ, likeQ, ...params, per, offset];
+      const [lrows] = await db.query(likeSql, likeParams);
+      const safe2 = lrows.map(({ verification_detail, ...rest }) => rest);
+      return res.json({ items: safe2, page: pg, per_page: per, total: safe2.length });
+    }
+
+    // No keyword: normal filtered listing with pagination
+    const listSql = `SELECT i.item_id, i.report_type, i.status, i.color, i.location, i.description, i.item_date, i.item_time, i.image_path, i.created_at, i.user_id, c.name AS category_name, u.full_name, u.username FROM items i JOIN categories c ON i.category_id = c.category_id JOIN users u ON i.user_id = u.user_id WHERE ${baseWhere.join(' AND ')} ORDER BY i.created_at DESC LIMIT ? OFFSET ?`;
+    const listParams = [...params, per, offset];
+    const [rows] = await db.query(listSql, listParams);
+    const safe = rows.map(({ verification_detail, ...rest }) => rest);
+    return res.json({ items: safe, page: pg, per_page: per, total: safe.length });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Search failed.' });
+  }
 });
 
 router.get('/:id', async (req, res) => {
