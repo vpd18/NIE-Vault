@@ -5,6 +5,7 @@ const perPage = 12;
 
 function setType(t) {
   currentType = t;
+  currentPage = 1;
   document.getElementById('pillAll').className   = 'type-pill' + (t === ''      ? ' p-all'   : '');
   document.getElementById('pillLost').className  = 'type-pill' + (t === 'lost'  ? ' p-lost'  : '');
   document.getElementById('pillFound').className = 'type-pill' + (t === 'found' ? ' p-found' : '');
@@ -51,6 +52,8 @@ async function doSearch() {
   document.getElementById('resultCount').textContent = '';
 
   const p = new URLSearchParams();
+  // cache-buster to avoid stale 304 responses from browser/proxies
+  p.set('_', String(Date.now()));
   if (currentType) p.set('type', currentType);
   p.set('page', String(currentPage));
   p.set('per_page', String(perPage));
@@ -69,7 +72,7 @@ async function doSearch() {
     const total = resp.total || items.length;
     document.getElementById('resultCount').textContent = `${total} item${total !== 1 ? 's' : ''} found`;
 
-    if (!n) {
+    if (items.length === 0) {
       document.getElementById('grid').innerHTML = `
         <div class="empty-state" style="grid-column:1/-1">
           <div class="empty-icon">🔍</div>

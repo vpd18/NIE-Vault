@@ -25,6 +25,31 @@ function normalizeWords(value) {
     .filter(word => word.length > 2);
 }
 
+function escapeLike(value) {
+  return String(value || '').replace(/[\\%_]/g, '\\$&');
+}
+
+function buildKeywordSearch(keyword) {
+  const trimmed = String(keyword || '').trim().toLowerCase();
+  let tokens = [...new Set(normalizeWords(trimmed))];
+  // If tokenization removed everything (e.g. short words like 'id'), fall back to using the raw term
+  if (tokens.length === 0 && trimmed.length > 0) tokens = [trimmed];
+  // Only build a boolean full-text query for tokens that are long enough (MySQL default minlength ~3)
+  const ftTokens = tokens.filter(t => t.length >= 3);
+  const booleanQuery = ftTokens.length > 0 ? ftTokens.map(token => `+${token}*`).join(' ') : '';
+  const phraseLike = `%${escapeLike(tokens.join('%'))}%`;
+  const tokenLikes = tokens.map(token => `%${escapeLike(token)}%`);
+  const numericId = /^\d+$/.test(trimmed) ? Number(trimmed) : null;
+
+  return {
+    tokens,
+    booleanQuery,
+    phraseLike,
+    tokenLikes,
+    numericId
+  };
+}
+
 // Ensure a FULLTEXT index exists on searchable columns
 let _fulltextChecked = false;
 async function ensureFulltextIndex() {
@@ -104,6 +129,10 @@ router.get('/categories', async (req, res) => {
 });
 
 router.get('/search', async (req, res) => {
+  // Prevent browsers/proxies from returning cached (304) responses for search
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   const { type, category_id, color, location, keyword, status = 'active', page = 1, per_page = 20 } = req.query;
   const pg = Math.max(1, parseInt(page, 10) || 1);
   const per = Math.min(100, Math.max(5, parseInt(per_page, 10) || 20));
@@ -117,34 +146,130 @@ router.get('/search', async (req, res) => {
   if (color) { baseWhere.push('i.color LIKE ?'); params.push('%' + color + '%'); }
   if (location) { baseWhere.push('i.location LIKE ?'); params.push('%' + location + '%'); }
 
+  const baseFrom = `FROM items i JOIN categories c ON i.category_id = c.category_id JOIN users u ON i.user_id = u.user_id`;
+  const baseWhereSql = baseWhere.length ? `WHERE ${baseWhere.join(' AND ')}` : '';
+
   try {
     await ensureFulltextIndex();
 
-    // If keyword provided, try full-text natural language search first
-    if (keyword) {
-      const ftSql = `SELECT i.item_id, i.report_type, i.status, i.color, i.location, i.description, i.item_date, i.item_time, i.image_path, i.created_at, i.user_id, c.name AS category_name, u.full_name, u.username, MATCH(i.description, i.location, i.color) AGAINST(?) AS relevance FROM items i JOIN categories c ON i.category_id = c.category_id JOIN users u ON i.user_id = u.user_id WHERE ${baseWhere.join(' AND ')} AND MATCH(i.description, i.location, i.color) AGAINST(? IN NATURAL LANGUAGE MODE) HAVING relevance > 0 ORDER BY relevance DESC, i.created_at DESC LIMIT ? OFFSET ?`;
-      const ftParams = [keyword, keyword, ...params, per, offset];
-      const [rows] = await db.query(ftSql, ftParams);
-      if (rows.length > 0) {
-        const safe = rows.map(({ verification_detail, ...rest }) => rest);
-        return res.json({ items: safe, page: pg, per_page: per, total: safe.length });
+    const keywordInfo = keyword ? buildKeywordSearch(keyword) : null;
+    const keywordParts = [];
+    const keywordParams = [];
+
+    if (keywordInfo) {
+      if (keywordInfo.booleanQuery) {
+        keywordParts.push("MATCH(i.description, i.location, i.color) AGAINST(? IN BOOLEAN MODE)");
+        keywordParams.push(keywordInfo.booleanQuery);
       }
 
-      // Fallback to LIKE-based fuzzy search if full-text returns nothing
-      const likeQ = '%' + keyword.split(/\s+/).join('%') + '%';
-      const likeSql = `SELECT i.item_id, i.report_type, i.status, i.color, i.location, i.description, i.item_date, i.item_time, i.image_path, i.created_at, i.user_id, c.name AS category_name, u.full_name, u.username FROM items i JOIN categories c ON i.category_id = c.category_id JOIN users u ON i.user_id = u.user_id WHERE ${baseWhere.join(' AND ')} AND (i.description LIKE ? OR i.location LIKE ? OR i.color LIKE ?) ORDER BY i.created_at DESC LIMIT ? OFFSET ?`;
-      const likeParams = [likeQ, likeQ, likeQ, ...params, per, offset];
-      const [lrows] = await db.query(likeSql, likeParams);
-      const safe2 = lrows.map(({ verification_detail, ...rest }) => rest);
-      return res.json({ items: safe2, page: pg, per_page: per, total: safe2.length });
+      const tokenScope = [];
+      if (keywordInfo.phraseLike && keywordInfo.tokens.length) {
+        tokenScope.push("i.description LIKE ?"); keywordParams.push(keywordInfo.phraseLike);
+        tokenScope.push("i.location LIKE ?"); keywordParams.push(keywordInfo.phraseLike);
+        tokenScope.push("i.color LIKE ?"); keywordParams.push(keywordInfo.phraseLike);
+        tokenScope.push("c.name LIKE ?"); keywordParams.push(keywordInfo.phraseLike);
+        tokenScope.push("u.full_name LIKE ?"); keywordParams.push(keywordInfo.phraseLike);
+        tokenScope.push("u.username LIKE ?"); keywordParams.push(keywordInfo.phraseLike);
+      }
+
+      for (const tokenLike of keywordInfo.tokenLikes) {
+        tokenScope.push("i.description LIKE ?"); keywordParams.push(tokenLike);
+        tokenScope.push("i.location LIKE ?"); keywordParams.push(tokenLike);
+        tokenScope.push("i.color LIKE ?"); keywordParams.push(tokenLike);
+        tokenScope.push("c.name LIKE ?"); keywordParams.push(tokenLike);
+        tokenScope.push("u.full_name LIKE ?"); keywordParams.push(tokenLike);
+        tokenScope.push("u.username LIKE ?"); keywordParams.push(tokenLike);
+      }
+
+      tokenScope.push("i.report_type LIKE ?");
+      keywordParams.push(`%${escapeLike(String(keyword).trim().toLowerCase())}%`);
+
+      if (keywordInfo.numericId !== null) {
+        tokenScope.push("i.item_id = ?");
+        keywordParams.push(keywordInfo.numericId);
+      }
+
+      keywordParts.push(`(${tokenScope.join(' OR ')})`);
     }
 
-    // No keyword: normal filtered listing with pagination
-    const listSql = `SELECT i.item_id, i.report_type, i.status, i.color, i.location, i.description, i.item_date, i.item_time, i.image_path, i.created_at, i.user_id, c.name AS category_name, u.full_name, u.username FROM items i JOIN categories c ON i.category_id = c.category_id JOIN users u ON i.user_id = u.user_id WHERE ${baseWhere.join(' AND ')} ORDER BY i.created_at DESC LIMIT ? OFFSET ?`;
-    const listParams = [...params, per, offset];
+    const keywordWhereSql = keywordParts.length ? `AND (${keywordParts.join(' OR ')})` : '';
+
+    const countSql = `SELECT COUNT(*) AS total ${baseFrom} ${baseWhereSql} ${keywordWhereSql}`;
+    const countParams = [...params, ...keywordParams];
+    const [countRows] = await db.query(countSql, countParams);
+    const total = countRows[0] ? Number(countRows[0].total) : 0;
+
+      const relevanceExpr = keywordInfo && keywordInfo.booleanQuery
+        ? `MATCH(i.description, i.location, i.color) AGAINST(? IN BOOLEAN MODE)`
+        : '0';
+
+    const scoreParts = [];
+    const scoreParams = [];
+    if (keywordInfo) {
+      if (keywordInfo.booleanQuery) {
+        scoreParts.push(`(${relevanceExpr} * 10)`);
+        scoreParams.push(keywordInfo.booleanQuery);
+      }
+      if (keywordInfo.phraseLike) {
+        // Exact category name equality: very large boost when the user's phrase equals the category
+        scoreParts.push(`CASE WHEN LOWER(c.name) = LOWER(?) THEN 200 ELSE 0 END`);
+        scoreParams.push(String(keyword).trim());
+
+        // Strong category-name containment boost (phrase match)
+        scoreParts.push(`CASE WHEN LOWER(c.name) LIKE LOWER(?) THEN 60 ELSE 0 END`);
+        scoreParams.push(keywordInfo.phraseLike);
+
+        // Smaller additional category phrase boost
+        scoreParts.push(`CASE WHEN c.name LIKE ? THEN 6 ELSE 0 END`);
+        scoreParams.push(keywordInfo.phraseLike);
+        scoreParts.push(`CASE WHEN i.description LIKE ? THEN 2 ELSE 0 END`);
+        scoreParams.push(keywordInfo.phraseLike);
+        scoreParts.push(`CASE WHEN i.location LIKE ? THEN 3 ELSE 0 END`);
+        scoreParams.push(keywordInfo.phraseLike);
+        scoreParts.push(`CASE WHEN i.color LIKE ? THEN 2 ELSE 0 END`);
+        scoreParams.push(keywordInfo.phraseLike);
+        scoreParts.push(`CASE WHEN u.full_name LIKE ? THEN 2 ELSE 0 END`);
+        scoreParams.push(keywordInfo.phraseLike);
+        scoreParts.push(`CASE WHEN u.username LIKE ? THEN 2 ELSE 0 END`);
+        scoreParams.push(keywordInfo.phraseLike);
+      }
+      if (keywordInfo.numericId !== null) {
+        scoreParts.push(`CASE WHEN i.item_id = ? THEN 20 ELSE 0 END`);
+        scoreParams.push(keywordInfo.numericId);
+      }
+    }
+
+    const scoreExpr = scoreParts.length ? `(${scoreParts.join(' + ')})` : '0';
+
+    // Build SELECT-level params (placeholders inside SELECT expressions)
+    const selectParams = [];
+    if (keywordInfo && keywordInfo.booleanQuery) {
+      // relevanceExpr placeholder (MATCH ...) appears once in SELECT
+      // scoreParts may reference MATCH(...) again; provide booleanQuery for both
+      selectParams.push(keywordInfo.booleanQuery);
+      // if scoreParts includes MATCH(...) as first element, provide second occurrence
+      if (scoreParts.length && String(scoreParts[0]).includes('MATCH(')) selectParams.push(keywordInfo.booleanQuery);
+    }
+    if (keywordInfo && keywordInfo.phraseLike) {
+      // exact equality param first (LOWER(c.name) = ?), then phrase-like params
+      selectParams.push(String(keyword).trim()); // exact equality for category name
+      selectParams.push(keywordInfo.phraseLike); // strong LOWER(c.name) LIKE ?
+      selectParams.push(keywordInfo.phraseLike); // c.name
+      selectParams.push(keywordInfo.phraseLike); // i.description
+      selectParams.push(keywordInfo.phraseLike); // i.location
+      selectParams.push(keywordInfo.phraseLike); // i.color
+      selectParams.push(keywordInfo.phraseLike); // u.full_name
+      selectParams.push(keywordInfo.phraseLike); // u.username
+    }
+    if (keywordInfo && keywordInfo.numericId !== null) selectParams.push(keywordInfo.numericId);
+
+    const listSql = `SELECT i.item_id, i.report_type, i.status, i.color, i.location, i.description, i.item_date, i.item_time, i.image_path, i.created_at, i.user_id, c.name AS category_name, u.full_name, u.username, ${relevanceExpr} AS relevance, ${scoreExpr} AS score ${baseFrom} ${baseWhereSql} ${keywordWhereSql} ORDER BY score DESC, relevance DESC, i.created_at DESC LIMIT ? OFFSET ?`;
+
+    // Final param order: SELECT params, base WHERE params, keyword WHERE params, LIMIT, OFFSET
+    const listParams = [...selectParams, ...params, ...keywordParams, per, offset];
     const [rows] = await db.query(listSql, listParams);
     const safe = rows.map(({ verification_detail, ...rest }) => rest);
-    return res.json({ items: safe, page: pg, per_page: per, total: safe.length });
+    return res.json({ items: safe, page: pg, per_page: per, total });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Search failed.' });

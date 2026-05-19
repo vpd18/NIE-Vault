@@ -1,4 +1,8 @@
 // js/home.js
+function unwrapItems(resp) {
+  return Array.isArray(resp) ? resp : (resp?.items || []);
+}
+
 async function init() {
   const user = await Auth.requireAuth();
   if (!user) return;
@@ -15,14 +19,14 @@ async function init() {
       fetch('/api/items/search?type=found&status=active').then(r => r.json()),
       fetch('/api/items/search?status=resolved').then(r => r.json()),
     ]);
-    document.getElementById('sLost').textContent     = lost.length;
-    document.getElementById('sFound').textContent    = found.length;
-    document.getElementById('sResolved').textContent = resolved.length;
+    document.getElementById('sLost').textContent     = unwrapItems(lost).length;
+    document.getElementById('sFound').textContent    = unwrapItems(found).length;
+    document.getElementById('sResolved').textContent = unwrapItems(resolved).length;
   } catch {}
 
   // Load recent items (latest 6)
   try {
-    const items = await API.get('/api/items/search?status=active');
+    const items = unwrapItems(await API.get('/api/items/search?status=active'));
     const grid  = document.getElementById('recentGrid');
     const recent = items.slice(0, 6);
     if (!recent.length) {

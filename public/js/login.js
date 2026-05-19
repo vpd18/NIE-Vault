@@ -1,4 +1,8 @@
 // js/login.js
+function unwrapItems(resp) {
+  return Array.isArray(resp) ? resp : (resp?.items || []);
+}
+
 function switchTab(tab) {
   const isLogin = tab === 'login';
   document.getElementById('tabLogin').classList.toggle('active', isLogin);
@@ -77,9 +81,9 @@ async function loadStats() {
       fetch('/api/items/search?type=found&status=active').then(r=>r.json()),
       fetch('/api/items/search?status=resolved').then(r=>r.json()),
     ]);
-    document.getElementById('ls1').textContent = lost.length;
-    document.getElementById('ls2').textContent = found.length;
-    document.getElementById('ls3').textContent = resolved.length;
+    document.getElementById('ls1').textContent = unwrapItems(lost).length;
+    document.getElementById('ls2').textContent = unwrapItems(found).length;
+    document.getElementById('ls3').textContent = unwrapItems(resolved).length;
   } catch {}
 }
 loadStats();
