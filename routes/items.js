@@ -128,6 +128,62 @@ router.get('/categories', async (req, res) => {
   catch (err) { res.status(500).json({ error: 'Server error.' }); }
 });
 
+router.get('/suggest', async (req, res) => {
+  const q = String(req.query.q || '').trim().toLowerCase();
+  const limit = Math.min(10, Math.max(3, parseInt(req.query.limit, 10) || 8));
+
+  if (q.length < 1) {
+    return res.json({ suggestions: [] });
+  }
+
+  try {
+    const like = `%${escapeLike(q)}%`;
+    const prefixLike = `${escapeLike(q)}%`;
+
+    const [rows] = await db.query(
+      `SELECT suggestion, suggestion_type
+       FROM (
+         SELECT c.name AS suggestion, 'category' AS suggestion_type, 1 AS sort_rank
+         FROM categories c
+         WHERE LOWER(c.name) LIKE ? OR LOWER(c.name) LIKE ?
+
+         UNION ALL
+
+         SELECT DISTINCT CONCAT(c.name, CASE WHEN i.color IS NOT NULL AND i.color <> '' THEN CONCAT(' · ', i.color) ELSE '' END) AS suggestion,
+                'item' AS suggestion_type,
+                2 AS sort_rank
+         FROM items i
+         JOIN categories c ON i.category_id = c.category_id
+         WHERE i.status = 'active'
+           AND (
+             LOWER(c.name) LIKE ? OR
+             LOWER(i.description) LIKE ? OR
+             LOWER(i.location) LIKE ? OR
+             LOWER(i.color) LIKE ?
+           )
+       ) AS suggestions
+       ORDER BY sort_rank, suggestion
+       LIMIT ?`,
+      [prefixLike, like, like, like, like, like, limit]
+    );
+
+    const seen = new Set();
+    const suggestions = rows
+      .map(row => ({ label: row.suggestion, value: row.suggestion, type: row.suggestion_type }))
+      .filter(entry => {
+        const key = entry.value.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
+    res.json({ suggestions });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Suggestion lookup failed.' });
+  }
+});
+
 router.get('/search', async (req, res) => {
   // Prevent browsers/proxies from returning cached (304) responses for search
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');

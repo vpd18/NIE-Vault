@@ -2,6 +2,85 @@
 let currentType = '';
 let currentPage = 1;
 const perPage = 12;
+let suggestionTimer = null;
+let suggestionRequestId = 0;
+let suggestionIndex = -1;
+let suggestionItems = [];
+
+function getSuggestionPanel() {
+  return document.getElementById('suggestionPanel');
+}
+
+function hideSuggestions() {
+  const panel = getSuggestionPanel();
+  if (!panel) return;
+  panel.classList.remove('open');
+  panel.innerHTML = '';
+  suggestionIndex = -1;
+  suggestionItems = [];
+}
+
+function chooseSuggestion(value) {
+  const input = document.getElementById('fKeyword');
+  if (!input) return;
+  input.value = value;
+  hideSuggestions();
+  currentPage = 1;
+  doSearch();
+}
+
+function renderSuggestions(items) {
+  const panel = getSuggestionPanel();
+  if (!panel) return;
+
+  suggestionItems = items || [];
+  suggestionIndex = -1;
+
+  if (!suggestionItems.length) {
+    hideSuggestions();
+    return;
+  }
+
+  panel.innerHTML = suggestionItems.map((item, index) => `
+    <button type="button" class="suggestion-item" data-index="${index}">
+      <span class="suggestion-item-main">
+        <span class="suggestion-label">${Helpers.escapeHtml(item.label)}</span>
+        <span class="suggestion-meta">${Helpers.escapeHtml(item.type)}</span>
+      </span>
+      <span class="text-muted">↵</span>
+    </button>`).join('');
+
+  panel.querySelectorAll('.suggestion-item').forEach(btn => {
+    btn.addEventListener('mousedown', e => e.preventDefault());
+    btn.addEventListener('click', () => chooseSuggestion(suggestionItems[Number(btn.dataset.index)].value));
+  });
+
+  panel.classList.add('open');
+}
+
+const fetchSuggestions = Helpers.debounce(async () => {
+  const input = document.getElementById('fKeyword');
+  if (!input) return;
+
+  const q = input.value.trim();
+  if (q.length < 1) {
+    hideSuggestions();
+    return;
+  }
+
+  const requestId = ++suggestionRequestId;
+  try {
+    const params = new URLSearchParams();
+    params.set('q', q);
+    params.set('limit', '8');
+    params.set('_', String(Date.now()));
+    const resp = await API.get('/api/items/suggest?' + params.toString());
+    if (requestId !== suggestionRequestId) return;
+    renderSuggestions(resp.suggestions || []);
+  } catch {
+    if (requestId === suggestionRequestId) hideSuggestions();
+  }
+}, 180);
 
 function setType(t) {
   currentType = t;
@@ -48,6 +127,7 @@ function renderSkeletons() {
 }
 
 async function doSearch() {
+  hideSuggestions();
   document.getElementById('grid').innerHTML = renderSkeletons();
   document.getElementById('resultCount').textContent = '';
 
@@ -127,9 +207,56 @@ async function init() {
   if (qp.get('keyword')) document.getElementById('fKeyword').value = qp.get('keyword');
 
   // Enter key
-  ['fKeyword','fColor','fLocation'].forEach(id =>
+  const keywordInput = document.getElementById('fKeyword');
+  keywordInput.addEventListener('input', () => {
+    currentPage = 1;
+    fetchSuggestions();
+  });
+  keywordInput.addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown' && suggestionItems.length) {
+      e.preventDefault();
+      suggestionIndex = Math.min(suggestionItems.length - 1, suggestionIndex + 1);
+      const panel = getSuggestionPanel();
+      panel?.querySelectorAll('.suggestion-item').forEach((el, idx) => {
+        el.classList.toggle('active', idx === suggestionIndex);
+      });
+      return;
+    }
+    if (e.key === 'ArrowUp' && suggestionItems.length) {
+      e.preventDefault();
+      suggestionIndex = Math.max(0, suggestionIndex - 1);
+      const panel = getSuggestionPanel();
+      panel?.querySelectorAll('.suggestion-item').forEach((el, idx) => {
+        el.classList.toggle('active', idx === suggestionIndex);
+      });
+      return;
+    }
+    if (e.key === 'Enter') {
+      if (suggestionIndex >= 0 && suggestionItems[suggestionIndex]) {
+        e.preventDefault();
+        chooseSuggestion(suggestionItems[suggestionIndex].value);
+        return;
+      }
+      doSearch();
+    }
+    if (e.key === 'Escape') {
+      hideSuggestions();
+    }
+  });
+  keywordInput.addEventListener('blur', () => {
+    setTimeout(hideSuggestions, 120);
+  });
+
+  ['fColor','fLocation'].forEach(id =>
     document.getElementById(id).addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); })
   );
+
+  document.addEventListener('click', e => {
+    const panel = getSuggestionPanel();
+    const group = document.querySelector('.suggestion-group');
+    if (!panel || !group) return;
+    if (!group.contains(e.target)) hideSuggestions();
+  });
 
   doSearch();
 }

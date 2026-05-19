@@ -20,6 +20,43 @@
   .filter-label { font-size: 0.7rem; font-weight: 700; color: var(--ink-40); text-transform: uppercase; letter-spacing: 0.07em; }
   .filter-group .form-control { min-width: 130px; padding: 8px 12px; font-size: 0.85rem; border-radius: var(--r-md); }
   .filter-group .form-control[type="text"] { min-width: 180px; }
+  .suggestion-group { position: relative; }
+  .suggestion-panel {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    width: min(340px, 82vw);
+    max-height: 280px;
+    overflow-y: auto;
+    background: rgba(255,255,255,0.98);
+    border: 1px solid var(--border-md);
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow-lg);
+    padding: 6px;
+    z-index: 250;
+    display: none;
+  }
+  .suggestion-panel.open { display: block; }
+  .suggestion-item {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    border: none;
+    background: transparent;
+    color: var(--ink);
+    padding: 10px 12px;
+    border-radius: 12px;
+    cursor: pointer;
+    text-align: left;
+    transition: background var(--t-fast) var(--ease);
+  }
+  .suggestion-item:hover,
+  .suggestion-item.active { background: var(--ink-10); }
+  .suggestion-item-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .suggestion-label { font-size: 0.9rem; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .suggestion-meta { font-size: 0.72rem; color: var(--ink-40); text-transform: uppercase; letter-spacing: 0.06em; }
 
   .type-pills { display: flex; gap: 6px; align-self: flex-end; }
   .type-pill {
@@ -78,9 +115,10 @@
     <button class="type-pill"         id="pillLost"  onclick="setType('lost')">😟 Lost</button>
     <button class="type-pill"         id="pillFound" onclick="setType('found')">🎉 Found</button>
   </div>
-  <div class="filter-group">
+  <div class="filter-group suggestion-group">
     <div class="filter-label">Keyword</div>
     <input class="form-control" type="text" id="fKeyword" placeholder="Search…"/>
+    <div class="suggestion-panel" id="suggestionPanel" aria-label="Search suggestions"></div>
   </div>
   <div class="filter-group">
     <div class="filter-label">Category</div>
