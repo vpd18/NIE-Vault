@@ -15,6 +15,7 @@ const authRoutes  = require('./routes/auth');
 const itemRoutes  = require('./routes/items');
 const claimRoutes = require('./routes/claims');
 const notificationRoutes = require('./routes/notifications');
+const itemMessagesRoutes = require('./routes/itemMessages');
 
 const app = express();
 
@@ -39,8 +40,7 @@ app.use(session({
 app.use('/api/auth',   authRoutes);
 app.use('/api/items',  itemRoutes(io));
 app.use('/api/claims', claimRoutes(io));
-app.use('/api/notifications', notificationRoutes());
-
+app.use('/api/notifications', notificationRoutes());app.use('/api/item-messages', itemMessagesRoutes(io));
 // ── Start ────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
 

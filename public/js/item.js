@@ -2,6 +2,7 @@
 const params = new URLSearchParams(window.location.search);
 const itemId = params.get('id');
 let meId     = null;
+let messageThreads = {}; // Store message threads
 
 async function init() {
   const user = await Auth.requireAuth();
@@ -100,6 +101,16 @@ function renderActionArea(item, isOwner) {
     loadClaims();
   }
 
+  if (isOwner && item.report_type === 'lost') {
+    // Owner of lost item: see messages from people who have it
+    area.innerHTML = `
+      <div class="section-card animate-fade-up">
+        <div class="section-card-title">💬 Messages About This Item</div>
+        <div id="messageThreadsList"><div class="text-muted text-sm">Loading messages…</div></div>
+      </div>`;
+    loadMessageThreads();
+  }
+
   if (!isOwner && item.report_type === 'found' && item.status === 'active') {
     area.innerHTML += `
       <div class="section-card animate-fade-up">
@@ -110,6 +121,23 @@ function renderActionArea(item, isOwner) {
           <textarea class="form-control" id="claimMsg" rows="3" placeholder="Briefly explain why this is yours…"></textarea>
         </div>
         <button class="btn btn-sky claim-btn" id="claimBtn" onclick="submitClaim()">Submit Claim →</button>
+      </div>`;
+  }
+
+  if (!isOwner && item.report_type === 'lost' && item.status === 'active') {
+    // Someone who has a lost item: can message the owner
+    area.innerHTML += `
+      <div class="section-card animate-fade-up">
+        <div class="section-card-title">💝 Do You Have This Item?</div>
+        <p class="text-sm text-muted" style="margin-bottom:1rem;">Found this item? Let the owner know by sending them a message.</p>
+        <button class="btn btn-jade claim-btn" id="messageBtn" onclick="toggleItemChat()">📬 Send Message →</button>
+        <div id="itemChatPanel" style="display:none;margin-top:1rem;">
+          <div class="msg-thread" id="itemThread"></div>
+          <div class="send-row">
+            <textarea class="form-control" id="itemChatIn" placeholder="Tell them about the item and how to reach you…"></textarea>
+            <button class="btn btn-primary btn-sm" onclick="sendItemMsg()">Send</button>
+          </div>
+        </div>
       </div>`;
   }
 
@@ -233,6 +261,123 @@ async function sendMsg(claimId) {
     input.value = '';
     loadMessages(claimId);
   } catch(e) { Toast.error(e.message); }
+}
+
+// ══════════════════════════════════════════════════════════
+// Item messaging functions (for lost items)
+// ══════════════════════════════════════════════════════════
+
+async function loadMessageThreads() {
+  try {
+    const threads = await API.get(`/api/item-messages/item/${itemId}/threads`);
+    const el = document.getElementById('messageThreadsList');
+    if (!threads || !threads.length) {
+      el.innerHTML = '<div class="empty-state" style="padding:1.5rem;"><div class="empty-icon" style="font-size:2rem;">📭</div><p>No one has messaged about this item yet.</p></div>';
+      return;
+    }
+    el.innerHTML = threads.map(t => `
+      <div class="claim-item" id="threadCard-${t.other_user_id}">
+        <div class="claim-header">
+          <div>
+            <div class="claim-name">${Helpers.escapeHtml(t.full_name)}</div>
+            <div class="text-muted text-xs">@${Helpers.escapeHtml(t.username)} · ${Helpers.formatDate(t.last_message_at)}</div>
+          </div>
+          ${t.unread_count > 0 ? `<span class="badge" style="background:var(--rose);color:white;">${t.unread_count} new</span>` : ''}
+        </div>
+        <div class="claim-body">
+          <div class="claim-actions">
+            <button class="btn btn-ghost btn-sm" onclick="toggleItemChat(${t.other_user_id})">💬 View Messages</button>
+          </div>
+          <div id="itemChatPanel-${t.other_user_id}" style="display:none;margin-top:1rem;">
+            <div class="msg-thread" id="itemThread-${t.other_user_id}"></div>
+            <div class="send-row">
+              <textarea class="form-control" id="itemChatIn-${t.other_user_id}" placeholder="Reply to their message…"></textarea>
+              <button class="btn btn-primary btn-sm" onclick="sendItemMsg(${t.other_user_id})">Send</button>
+            </div>
+          </div>
+        </div>
+      </div>`).join('');
+  } catch (err) {
+    console.error('Error loading message threads:', err);
+    document.getElementById('messageThreadsList').innerHTML = '<div class="text-muted text-sm">Error loading messages</div>';
+  }
+}
+
+async function toggleItemChat(otherUserId = null) {
+  if (!otherUserId) {
+    // Opening new chat
+    const panel = document.getElementById('itemChatPanel');
+    const open  = panel.style.display === 'none';
+    panel.style.display = open ? 'block' : 'none';
+    if (open) {
+      // Get item owner's id
+      try {
+        const item = await API.get(`/api/items/${itemId}`);
+        loadItemMessages(item.user_id);
+      } catch {}
+    }
+  } else {
+    // Opening existing thread
+    const panel = document.getElementById(`itemChatPanel-${otherUserId}`);
+    const open  = panel.style.display === 'none';
+    panel.style.display = open ? 'block' : 'none';
+    if (open) loadItemMessages(otherUserId);
+  }
+}
+
+async function loadItemMessages(otherUserId) {
+  try {
+    // Determine which thread element to use
+    let el = document.getElementById(`itemThread-${otherUserId}`);
+    if (!el) {
+      el = document.getElementById('itemThread');
+    }
+    
+    if (!el) {
+      console.error('Thread element not found:', `itemThread-${otherUserId}`, 'or itemThread');
+      return;
+    }
+    
+    el.innerHTML = '<div class="text-muted text-sm" style="padding:4px 0;">Loading messages…</div>';
+    
+    const msgs = await API.get(`/api/item-messages/item/${itemId}/user/${otherUserId}`);
+    
+    if (!msgs || !msgs.length) {
+      el.innerHTML = '<div class="text-muted text-sm" style="padding:4px 0;">No messages yet. Start the conversation!</div>';
+      return;
+    }
+    
+    el.innerHTML = msgs.map(m => `
+      <div class="bubble ${m.sender_id === meId ? 'me' : 'them'}">
+        <div class="bw">${Helpers.escapeHtml(m.username)}</div>
+        ${Helpers.escapeHtml(m.body)}
+      </div>`).join('');
+    el.scrollTop = el.scrollHeight;
+  } catch (err) {
+    console.error('Error loading messages:', err);
+    const el = document.getElementById(`itemThread-${otherUserId}`) || document.getElementById('itemThread');
+    if (el) el.innerHTML = '<div class="text-muted text-sm">Error loading messages</div>';
+  }
+}
+
+async function sendItemMsg(otherUserId = null) {
+  try {
+    // Get item to find owner
+    const item = await API.get(`/api/items/${itemId}`);
+    const recipientId = otherUserId || item.user_id;
+    const inputId = otherUserId ? `itemChatIn-${otherUserId}` : 'itemChatIn';
+    const input = document.getElementById(inputId);
+    const body  = input.value.trim();
+    if (!body) return;
+    
+    await API.post(`/api/item-messages/item/${itemId}/user/${recipientId}`, { body });
+    input.value = '';
+    await loadItemMessages(recipientId);
+    Toast.success('Message sent!');
+  } catch(e) { 
+    console.error('Error sending message:', e);
+    Toast.error(e.message); 
+  }
 }
 
 init();

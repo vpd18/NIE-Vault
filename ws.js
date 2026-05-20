@@ -59,6 +59,12 @@ function buildNotificationPayload(eventType, data = {}) {
         message: data.message || 'This could be your lost item.',
         link: data.link || (data.item_id ? `/item.html?id=${data.item_id}` : '/search.html')
       };
+    case 'item_message':
+      return {
+        title: `Message about ${data.item_name || 'an item'}`,
+        message: `${data.sender_name || 'Someone'}: ${data.message || 'sent you a message'}`,
+        link: data.link || (data.item_id ? `/item.html?id=${data.item_id}` : '/home.html')
+      };
     default:
       return {
         title: 'Notification',
@@ -80,7 +86,7 @@ async function saveNotification(userId, eventType, data) {
 }
 
 async function sendEmailNotification(userId, eventType, payload) {
-  const emailTypes = new Set(['item_claimed', 'claim_approved', 'claim_rejected', 'new_message', 'item_match']);
+  const emailTypes = new Set(['item_claimed', 'claim_approved', 'claim_rejected', 'new_message', 'item_message', 'item_match']);
   if (!emailTypes.has(eventType)) return;
 
   const [rows] = await db.query('SELECT email, full_name FROM users WHERE user_id = ?', [userId]);

@@ -457,6 +457,32 @@ select.form-control {
 .notification-time { font-size: 0.72rem; color: var(--ink-40); flex-shrink: 0; }
 .notification-message { font-size: 0.88rem; color: var(--ink-80); line-height: 1.55; }
 
+/* Notification list item styles */
+.notif-item {
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: #fff;
+  margin-bottom: 0.6rem;
+  transition: all var(--t-fast) var(--ease);
+}
+.notif-item:hover {
+  border-color: var(--border-md);
+  box-shadow: var(--shadow-xs);
+}
+.notif-title {
+  font-weight: 600;
+  color: var(--ink);
+  font-size: 0.88rem;
+  margin-bottom: 2px;
+}
+.notif-message {
+  font-size: 0.82rem;
+  color: var(--ink-80);
+  line-height: 1.4;
+  margin-bottom: 4px;
+}
+
 @media(max-width: 560px) {
   .notification-panel { width: 100vw; }
 }
