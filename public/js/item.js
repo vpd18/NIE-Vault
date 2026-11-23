@@ -27,7 +27,7 @@ function renderItem(item, user) {
   const isOwner   = meId === item.user_id;
   const icon      = CAT_ICONS[item.category_name] || '📦';
   const imgHtml   = item.image_path
-    ? `<img class="detail-img" src="/uploads/${item.image_path}" alt="item photo"/>`
+    ? `<img class="detail-img" src="${Helpers.getImageUrl(item.image_path)}" alt="item photo"/>`
     : `<div class="detail-img-placeholder ${item.report_type}">${icon}</div>`;
 
   document.title = `${item.category_name} — NIE-Vault`;

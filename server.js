@@ -4,6 +4,7 @@
 //  Run: node server.js
 // ============================================================
 
+require('dotenv').config();
 const express = require('express');
 const session = require('express-session');
 const path    = require('path');
@@ -30,7 +31,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 app.use(session({
-  secret: 'change-this-to-a-long-random-string',  // replace before submission
+  secret: process.env.SESSION_SECRET || 'nie-vault-session-secret-change-me',
   resave: false,
   saveUninitialized: false,
   cookie: { maxAge: 1000 * 60 * 60 * 24 }  // 1 day
@@ -40,7 +41,9 @@ app.use(session({
 app.use('/api/auth',   authRoutes);
 app.use('/api/items',  itemRoutes(io));
 app.use('/api/claims', claimRoutes(io));
-app.use('/api/notifications', notificationRoutes());app.use('/api/item-messages', itemMessagesRoutes(io));
+app.use('/api/notifications', notificationRoutes());
+app.use('/api/item-messages', itemMessagesRoutes(io));
+
 // ── Start ────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
 

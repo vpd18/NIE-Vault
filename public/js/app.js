@@ -150,6 +150,11 @@ const Helpers = {
     d.textContent = str;
     return d.innerHTML;
   },
+  getImageUrl(p) {
+    if (!p) return '';
+    if (p.startsWith('http://') || p.startsWith('https://')) return p;
+    return '/uploads/' + p;
+  },
   debounce(fn, delay = 300) {
     let t;
     return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), delay); };

@@ -28,7 +28,26 @@ async function doLogin() {
     showAlert('Success! Redirecting…', 'success');
     setTimeout(() => window.location.href = '/home.html', 700);
   } catch(e) {
+    if (e.message && e.message.toLowerCase().includes('not verified')) {
+      showAlert(`Email not verified. <a onclick="doResendVerification('${login}')" style="text-decoration:underline;cursor:pointer;font-weight:700;">Click here to resend verification link</a>`);
+    } else {
+      showAlert(e.message);
+    }
+    btnLoading(btn, false);
+  }
+}
+
+async function doResendVerification(defaultVal) {
+  const email = prompt('Enter your college email or username to resend verification link:', defaultVal || document.getElementById('loginId')?.value?.trim() || '');
+  if (!email) return;
+  const btn = document.getElementById('loginBtn');
+  btnLoading(btn, true, 'Sending…');
+  try {
+    const res = await API.post('/api/auth/resend-verification', { email });
+    showAlert(res.message || 'Verification email sent! Check your inbox.', 'success');
+  } catch (e) {
     showAlert(e.message);
+  } finally {
     btnLoading(btn, false);
   }
 }

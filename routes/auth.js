@@ -37,7 +37,7 @@ router.post('/register', async (req, res) => {
     const expires = new Date(Date.now() + 24 * 3600 * 1000); // 24 hours
     await db.query('INSERT INTO email_verifications (user_id, token, expires_at) VALUES (?, ?, ?)', [result.insertId, token, expires]);
 
-    const base = process.env.BASE_URL || (`${req.protocol}://${req.get('host')}`);
+    const base = process.env.APP_URL || process.env.BASE_URL || (`${req.protocol}://${req.get('host')}`);
     const verifyLink = `${base}/verify.html?token=${token}`;
     const html = `<p>Hello ${username},</p><p>Click the link below to verify your NIE-Vault account (valid for 24 hours):</p><p><a href="${verifyLink}">${verifyLink}</a></p>`;
     try { await sendMail({ to: email, subject: 'Verify your NIE-Vault email', html, text: `Verify: ${verifyLink}` }); } catch (e) { console.error('Mail send failed', e); }
@@ -92,7 +92,7 @@ router.post('/forgot', async (req, res) => {
       INDEX(token)
     )`);
     await db.query('INSERT INTO password_resets (user_id, token, expires_at) VALUES (?, ?, ?)', [user.user_id, token, expires]);
-    const base = process.env.BASE_URL || (`${req.protocol}://${req.get('host')}`);
+    const base = process.env.APP_URL || process.env.BASE_URL || (`${req.protocol}://${req.get('host')}`);
     const resetLink = `${base}/reset.html?token=${token}`;
     const html = `<p>Hello ${user.username || ''},</p><p>Click the link below to reset your password (valid for 1 hour):</p><p><a href="${resetLink}">${resetLink}</a></p>`;
     try { await sendMail({ to: user.email, subject: 'Reset your NIE-Vault password', html, text: `Reset your password: ${resetLink}` }); } catch (e) { console.error('Mail send failed', e); }
@@ -127,6 +127,35 @@ router.get('/verify', async (req, res) => {
     await db.query('DELETE FROM email_verifications WHERE user_id = ?', [ev.user_id]);
     res.json({ message: 'Email verified. You can now sign in.' });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Server error.' }); }
+});
+
+// Resend verification email endpoint
+router.post('/resend-verification', async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email or username is required.' });
+  try {
+    const [rows] = await db.query('SELECT user_id, email, username, email_verified FROM users WHERE email = ? OR username = ?', [email, email]);
+    if (rows.length === 0) return res.status(404).json({ error: 'Account not found with that email or username.' });
+    const user = rows[0];
+    if (user.email_verified) return res.json({ message: 'Your email is already verified. You can sign in!' });
+
+    // Clean up old tokens for this user
+    await db.query('DELETE FROM email_verifications WHERE user_id = ?', [user.user_id]);
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const expires = new Date(Date.now() + 24 * 3600 * 1000); // 24 hours
+    await db.query('INSERT INTO email_verifications (user_id, token, expires_at) VALUES (?, ?, ?)', [user.user_id, token, expires]);
+
+    const base = process.env.APP_URL || process.env.BASE_URL || (`${req.protocol}://${req.get('host')}`);
+    const verifyLink = `${base}/verify.html?token=${token}`;
+    const html = `<p>Hello ${user.username},</p><p>Click the link below to verify your NIE-Vault account (valid for 24 hours):</p><p><a href="${verifyLink}">${verifyLink}</a></p>`;
+    
+    await sendMail({ to: user.email, subject: 'Verify your NIE-Vault email', html, text: `Verify: ${verifyLink}` });
+    res.json({ message: 'Verification email sent! Please check your college inbox.' });
+  } catch (err) {
+    console.error('Resend verification failed:', err);
+    res.status(500).json({ error: 'Server error sending verification email.' });
+  }
 });
 
 module.exports = router;

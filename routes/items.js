@@ -4,18 +4,19 @@ const path = require('path');
 const db = require('../db');
 const { requireLogin } = require('../middleware/auth');
 const { notifyUser } = require('../ws');
+const { uploadFile, deleteFile } = require('../s3');
 
 module.exports = function(io) {
   const router = express.Router();
 
-const storage = multer.diskStorage({
-  destination: 'uploads/',
-  filename: (req, file, cb) => {
-    const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, unique + path.extname(file.originalname));
+const storage = multer.memoryStorage();
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    cb(null, /jpeg|jpg|png|webp/.test(path.extname(file.originalname).toLowerCase()));
   }
 });
-const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 }, fileFilter: (req, file, cb) => { cb(null, /jpeg|jpg|png|webp/.test(path.extname(file.originalname).toLowerCase())); } });
 
 function normalizeWords(value) {
   return String(value || '')
@@ -346,7 +347,17 @@ router.post('/', requireLogin, upload.single('image'), async (req, res) => {
     return res.status(400).json({ error: 'Missing required fields.' });
   if (!['lost', 'found'].includes(report_type))
     return res.status(400).json({ error: 'report_type must be lost or found.' });
-  const image_path = req.file ? req.file.filename : null;
+  
+  let image_path = null;
+  if (req.file) {
+    try {
+      image_path = await uploadFile(req.file.buffer, req.file.originalname, req.file.mimetype);
+    } catch (uploadErr) {
+      console.error('File upload failed:', uploadErr);
+      return res.status(500).json({ error: 'Failed to process image upload.' });
+    }
+  }
+
   const vd = report_type === 'lost' ? (verification_detail || null) : null;
   try {
     const [result] = await db.query(`INSERT INTO items (user_id, category_id, report_type, color, location, description, item_date, item_time, image_path, verification_detail) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [req.session.userId, category_id, report_type, color || null, location, description, item_date, item_time || null, image_path, vd]);
@@ -391,9 +402,14 @@ router.patch('/:id/resolve', requireLogin, async (req, res) => {
 
 router.delete('/:id', requireLogin, async (req, res) => {
   try {
-    const [rows] = await db.query('SELECT user_id FROM items WHERE item_id = ?', [req.params.id]);
+    const [rows] = await db.query('SELECT user_id, image_path FROM items WHERE item_id = ?', [req.params.id]);
     if (rows.length === 0) return res.status(404).json({ error: 'Item not found.' });
     if (rows[0].user_id !== req.session.userId) return res.status(403).json({ error: 'Not your item.' });
+    
+    if (rows[0].image_path) {
+      await deleteFile(rows[0].image_path);
+    }
+
     await db.query('DELETE FROM items WHERE item_id = ?', [req.params.id]);
     
     // 🔔 Broadcast item deleted

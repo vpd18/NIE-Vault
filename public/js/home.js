@@ -44,7 +44,7 @@ async function init() {
 function renderCard(item) {
   const icon = CAT_ICONS[item.category_name] || '📦';
   const img  = item.image_path
-    ? `<img class="item-card-img" src="/uploads/${item.image_path}" alt="item"/>`
+    ? `<img class="item-card-img" src="${Helpers.getImageUrl(item.image_path)}" alt="item"/>`
     : `<div class="item-card-placeholder ${item.report_type}">${icon}</div>`;
   return `
     <a class="item-card animate-fade-up" href="/item.html?id=${item.item_id}">
